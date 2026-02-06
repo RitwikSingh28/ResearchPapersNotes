@@ -43,3 +43,36 @@ The rate of these events is many, many orders of magnitude lower than the CPU's 
 ---
 
 At the time of writing the paper, recording and replaying the execution of a multi-processor VM was still WIP, with significant performance issues because nearly every access to the shared memory can be a non-deterministic operation.
+
+---
+
+Primary Server --------------> Replica Server    (executing in vLockstep)
+			(logging channel)
+All input that the PS receives is sent over to the backup VM via a network connection known as the logging channel. The primary and the backup VM follow a specific protocol, including explicit  acknowledgements by the backup VM, in order to ensure that no data is lost if the primary fails. Replicating server (or VM) execution can be modeled as the replication of a deterministic state machine. 
+- Network Packets
+- Disk Reads
+- Inputs
+- Non-deterministic events
+	- Virtual Interrupts
+	- Reading clock cycle of the processor
+	- Reading time
+
+---
+
+#### Deterministic Replay
+
+It records the inputs of a VM and all possible non-determinism associated with the VM execution in a stream of log entries written to a log file.
+
+---
+
+> __Output Requirement:__ if the backup VM ever takes over after a failure of the primary, the backup VM will continue executing in a way that is entirely consistent with all outputs that the primary VM has sent to the external world.
+
+The output requirement can be ensured by delaying any external output (typically a network packet) until the backup VM has received all information that will allow it to replay execution at least to the point of that output operation.
+
+> __Output Rule:__ the primary VM may not send an output to the external world, until the backup VM has received and acknowledged the log entry associated with the operation producing the output.
+
+We do not halt the execution of the VM to delay output response. The VM can continue execution, since Operating Systems do non-blocking networking and I/O with asynchronous interrupts to indicate completion, the primary VM won't immediately be affected by the delay in the output.
+
+Also, information on the non-deterministic events must be logged and acknowledged by the backup server.
+
+> We cannot guarantee that all outputs are produced exactly once in a failover situation. Without the use of transactions with two-phase commit when the primary intends to send an output, there is no way that the backup can determine if a primary crashed immediately before or after sending its last output. Fortunately, the network infrastructure is designed to deal with lost packets and identical packets. Note that incoming packets to the primary may be dropped for any number of reasons unrelated to server failure, so the network infrastructure, Operating Systems, and applications are all written to ensure that they  can compensate for lost packets.

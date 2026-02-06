@@ -11,10 +11,14 @@
             "id": "82a723f7f98d53cd",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "Notes.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "New tab"
+              "title": "Notes"
             }
           }
         ]
@@ -182,6 +186,8 @@
   },
   "active": "82a723f7f98d53cd",
   "lastOpenFiles": [
+    "1899928.1899932.pdf",
+    "GEMINI.md",
     "Notes.md"
   ]
 }
