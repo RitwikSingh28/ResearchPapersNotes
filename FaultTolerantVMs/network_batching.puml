@@ -1,0 +1,45 @@
+@startuml
+title: VMware FT - Network Transmit Batching Sequence
+
+skinparam sequenceMessageAlign center
+
+actor "Guest OS (in Primary VM)" as GuestOS
+participant "Primary Hypervisor" as Primary
+participant "Backup Hypervisor" as Backup
+participant "Physical Network" as Net
+
+' The Guest OS tries to send data, which traps to the hypervisor.
+GuestOS -> Primary: Application issues send() call
+activate Primary
+Primary -> GuestOS: **Trap:** Pause Guest OS execution
+deactivate GuestOS
+
+group Hypervisor Batching Process (Single Trap)
+
+    note over Primary: 1. Places packet data in a temporary
+**Transmit Queue**.
+
+    note over Primary: 2. **Batches:** Pulls additional queued packets
+from Guest OS network buffers.
+
+    Primary -> Backup: 3. **Logs** the entire batch over the
+logging channel.
+    activate Backup
+    Backup --> Primary: 4. **Acknowledges** receipt of the log.
+    deactivate Backup
+
+    note over Primary: 5. **Output Rule Satisfied:**
+Sends the full batch to the network.
+    Primary -> Net: Transmit Batch of Packets
+    activate Net
+    Net --> Primary: (Data sent)
+    deactivate Net
+
+end
+
+' After the batch is sent, the hypervisor resumes the Guest OS.
+Primary --> GuestOS: 6. **Resume** Guest OS Execution
+deactivate Primary
+activate GuestOS
+
+@enduml

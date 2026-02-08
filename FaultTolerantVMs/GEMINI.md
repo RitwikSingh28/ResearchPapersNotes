@@ -32,3 +32,24 @@ This document summarizes the key topics discussed regarding the "Design of a Pra
     2.  A CPU *reading* from a memory page while a DMA-powered "disk read" is simultaneously *writing* to that **same memory page**.
 
 *   **Solution (Bounce Buffers):** To solve this, the system avoids writing directly to the VM's memory from a disk read. Instead, the DMA writes to a temporary, private **bounce buffer**. Only after the I/O is fully complete is the data copied from the bounce buffer to the VM's memory. This avoids the race condition more efficiently than the alternative of manipulating MMU page protections.
+
+### 5. Challenges and Solutions for Network I/O (Section 3.5)
+
+The core idea of FT is that every non-deterministic event must happen at the exact same instruction on both the primary and backup VMs. High-speed networking presents a major challenge to this rule.
+
+*   **The Problem: Performance vs. Determinism**
+    *   Normally, to make networking fast, the hypervisor uses optimizations. For example, it might directly place incoming network data into the VM's memory *while the VM is still running*.
+    *   This is an "asynchronous" update, and it's a source of non-determinism. The update might happen at a slightly different time on the primary versus the backup, causing their states to diverge, which breaks the FT guarantee.
+
+*   **The Solution Part 1: Forcing Determinism**
+    *   To solve this, the FT system **disables these asynchronous network optimizations**.
+    *   Instead, every network operation (sending or receiving) forces the VM to **trap** (pause and switch control to the hypervisor).
+    *   This allows the hypervisor to log the network event, send it to the backup, and ensure everything happens in the correct, deterministic order before resuming the VM.
+
+*   **The New Problem: Performance Cost**
+    *   Trapping on every single network packet creates a lot of overhead and slows things down considerably. It also makes the "Output Rule" (waiting for the backup's ACK before sending a packet) very noticeable, adding latency to all outgoing traffic.
+
+*   **The Solution Part 2: Regaining Performance**
+    The authors implemented two key optimizations to overcome this performance hit:
+    1.  **Packet Batching (Clustering):** Instead of trapping for every individual packet, the hypervisor groups them. It can process one large batch of outgoing packets in a single trap, or deliver a whole batch of incoming packets using just one interrupt to the VM. This dramatically reduces the overhead.
+    2.  **Reducing ACK Latency:** The delay caused by the Output Rule is directly tied to the time it takes to send a log entry and get an acknowledgment (ACK) from the backup. They made this process extremely fast by handling the ACK in a lightweight, deferred-execution context (similar to a `tasklet` in Linux) which avoids slower, more complex thread context switches. This minimizes the time the primary has to wait before sending its network packet.
