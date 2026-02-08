@@ -241,3 +241,14 @@ In short, they traded standard network optimizations for a more rigid, determini
 and then cleverly clawed back the performance by batching operations and hyper optimizing the critical logging path.
 
 ![[Pasted image 20260208102015.png]]
+
+The second solution is similar to how a `tasklet` used to work in Linux. A tasklet was a very lightweight, high-priority function that can be run immediately after an interrupt, without the full overhead of scheduling a thread.
+
+__Flow:__
+1. __Registration (Setup):__ When the FT system starts, instead of dedicating a whole thread to wait for ACKs, it tells the hypervisor's low-level TCP stack to not wake up a thread, but to call this specific function that is being provided. This is called a __callback function__.
+2. __ACK Arrives:__ The ACK packet arrives. A hardware INT is triggered.
+3. __Direct Invocation:__ The hypervisor's networking stack does the minimum work to identify the packet. As instructed, instead of going through the scheduler, it immediately invokes the registered __callback function__ in what's called a "__deferred execution context__".
+4. __Action:__ This callback function runs instantly. Its job is simple and direct: find the pending output operation that this ACK corresponds to, mark it as "ready", and release it from the transmit queue.
+
+---
+
