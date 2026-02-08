@@ -252,3 +252,21 @@ __Flow:__
 
 ---
 
+#### Design Alternatives
+
+###### 1. Shared v/s Non-Shared Disk
+
+- In the default design, the primary and the backup VMs share the same virtual disks. The shared disk is considered external to the primary and backup VMs, so any write to the shared disk is considered a communication to the external world. Thus, writes to the shared disk must be delayed as per the output rule.
+- In the case of non-shared disks, the virtual disks are essentially considered part of the internal state of each VM. Therefore, disk writes of the primary do not have to be delayed according to the Output Rule.
+- One disadvantage of the non-shared design is that the two copies of the virtual disks must be explicitly synced up in some manner when FT is first enabled. In addition, FT VMotion must not only sync the running state of the primary and backup VMs, but also their disk state.
+
+##### 2. Executing Disk Reads on the Backup VMs
+
+- An alternate design is to have the backup VM execute disk reads and therefore eliminte the logging of disk read data. This approach can greatly reduce the traffic on the logging channel for workloads that do a lot of disk reads.
+- However, there are a lot of subtleties to take care of. 
+	- It my slow down the backup VM's execution, since the backup VM must execute all disk reads and wait if they are not physically complete d when it reaches the point in the VM execution, where they completed on the primary.
+	- Some extra work needs to be done to deal with failed disk operations.
+		- If a disk read by the primary succeeds, but the corresponding disk read on the backup fails, then the disk read by the backup must be retried until it succeeds, since the backup must get the same data in memory that the primary has.
+		- Conversely, if a disk read by the primary fails, then the contents of the target memory must be sent to the backup via the logging channel, since the contents of memory will be undetermined and not necessarily replicated by a successful disk read by the backup VM.
+- Executing disk reads on the backup can cause some slightly reduced throughput (1-4%) for real applications, but can also reduce the logging bandwidth noticeably.
+- Thus, executing disk reads on the backup VM may be useful in cases where the bandwidth of the logging channel is quite limited.
