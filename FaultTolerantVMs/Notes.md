@@ -269,4 +269,3 @@ __Flow:__
 		- If a disk read by the primary succeeds, but the corresponding disk read on the backup fails, then the disk read by the backup must be retried until it succeeds, since the backup must get the same data in memory that the primary has.
 		- Conversely, if a disk read by the primary fails, then the contents of the target memory must be sent to the backup via the logging channel, since the contents of memory will be undetermined and not necessarily replicated by a successful disk read by the backup VM.
 - Executing disk reads on the backup can cause some slightly reduced throughput (1-4%) for real applications, but can also reduce the logging bandwidth noticeably.
-- Thus, executing disk reads on the backup VM may be useful in cases where the bandwidth of the logging channel is quite limited.
